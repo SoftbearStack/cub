@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2024 Softbear, Inc.
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#[cfg(feature = "chrono")]
 use crate::common::Error;
 use crate::{impl_wrapper_from_str, impl_wrapper_int, impl_wrapper_nz};
 #[cfg(feature = "chrono")]

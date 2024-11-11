@@ -12,7 +12,7 @@ macro_rules! impl_wrapper_display {
     ($typ:ty) => {
         impl std::fmt::Display for $typ {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-                self.0.fmt(f)
+                std::fmt::Display::fmt(&self.0, f)
             }
         }
     };

@@ -9,7 +9,7 @@ pub struct AuthenticatedId(pub String);
 crate::impl_wrapper_str!(AuthenticatedId);
 
 /// The `Identity` struct is returned upon successful `OAuth2` authentication.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Identity {
     /// The login ID of the authenticated user.
     pub login_id: AuthenticatedId,

@@ -5,11 +5,17 @@ use crate::common::Error;
 use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
+#[derive(Default)]
+pub struct LoggerInner {
+    pub(crate) lines: Vec<String>,
+    pub(crate) warn: bool,
+}
+
 /// Thread-safe string logger.
 #[derive(Clone, Default)]
 pub struct StringLogger {
     pub(crate) debug: bool,
-    pub(crate) inner: Arc<Mutex<Vec<String>>>,
+    pub(crate) inner: Arc<Mutex<LoggerInner>>,
 }
 
 impl StringLogger {
@@ -17,7 +23,7 @@ impl StringLogger {
     pub fn append(&self, line: String, result: Result<String, Error>) -> Result<String, Error> {
         match &result {
             Ok(log) => self.trace(log.to_owned()),
-            Err(e) => self.trace(format!("{line} failed\n{e:?}")),
+            Err(e) => self.warn(format!("{line} failed\n{e:?}")),
         }
         result
     }
@@ -26,15 +32,34 @@ impl StringLogger {
     pub fn call<T>(&self, line: String, result: Result<T, Error>) -> Result<T, Error> {
         match &result {
             Ok(_) => self.trace(format!("{line} succeeded")),
-            Err(e) => self.trace(format!("{line} failed\n{e:?}")),
+            Err(e) => self.warn(format!("{line} failed\n{e:?}")),
         }
         result
     }
 
+    /// Whether the log contains any warnings.
+    pub fn contains_warnings(&self) -> bool {
+        self.inner
+            .lock()
+            .ok()
+            .map(|inner| inner.warn)
+            .unwrap_or(false)
+    }
+
     /// Add all lines from the specified logger to this logger.
     pub fn extend(&self, string_logger: &StringLogger) {
-        for line in string_logger.inner.lock().unwrap().iter() {
-            self.trace(line.clone());
+        if let (Ok(mut to_inner), Ok(from_inner)) = (self.inner.lock(), string_logger.inner.lock())
+        {
+            if !from_inner.lines.is_empty() {
+                if from_inner.warn {
+                    to_inner.warn = true;
+                }
+                let lines = from_inner.lines.join("\n");
+                if self.debug {
+                    println!("{lines}");
+                }
+                to_inner.lines.push(lines);
+            }
         }
     }
 
@@ -48,7 +73,9 @@ impl StringLogger {
             if self.debug {
                 println!("{indented_line}");
             }
-            self.inner.lock().unwrap().push(indented_line);
+            if let Ok(mut inner) = self.inner.lock() {
+                inner.lines.push(indented_line);
+            }
         }
     }
 
@@ -56,7 +83,7 @@ impl StringLogger {
     pub fn log<T: Display>(&self, line: String, result: Result<T, Error>) {
         match result {
             Ok(value) => self.trace(format!("{line} succeeded\n{value}")),
-            Err(e) => self.trace(format!("{line} failed\n{e:?}")),
+            Err(e) => self.warn(format!("{line} failed\n{e:?}")),
         }
     }
 
@@ -64,7 +91,7 @@ impl StringLogger {
     pub fn new(debug: bool) -> Self {
         Self {
             debug,
-            inner: Arc::new(Mutex::new(vec![])),
+            inner: Arc::new(Mutex::new(Default::default())),
         }
     }
 
@@ -74,42 +101,36 @@ impl StringLogger {
             if self.debug {
                 println!("{line}");
             }
-            self.inner.lock().unwrap().push(line);
+            if let Ok(mut inner) = self.inner.lock() {
+                inner.lines.push(line);
+            }
+        }
+    }
+
+    /// Add a warning or error line to this logger.
+    pub fn warn(&self, line: String) {
+        if !line.is_empty() {
+            if self.debug {
+                println!("{line}");
+            }
+            if let Ok(mut inner) = self.inner.lock() {
+                inner.lines.push(line);
+                inner.warn = true;
+            }
         }
     }
 }
 
 impl ToString for StringLogger {
     fn to_string(&self) -> String {
-        let inner = self.inner.lock().unwrap();
-        if inner.is_empty() {
-            String::default()
+        if let Ok(inner) = self.inner.lock() {
+            if inner.lines.is_empty() {
+                String::default()
+            } else {
+                inner.lines.join("\n")
+            }
         } else {
-            inner.join("\n")
+            String::default()
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::log::StringLogger;
-
-    #[test]
-    fn logger_tests() {
-        let log1 = StringLogger::default();
-
-        let bar = 123;
-        log1.trace(format!("foo {bar}"));
-        log1.trace(format!("bar {bar}"));
-
-        let log2 = StringLogger::default();
-        log1.trace(format!("moo {bar}"));
-        log1.trace(format!("goo {bar}"));
-
-        let log3 = StringLogger::default();
-        log3.extend(&log1);
-        log3.extend(&log2);
-
-        println!("{}", log3.to_string());
     }
 }

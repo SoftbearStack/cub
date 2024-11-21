@@ -25,7 +25,7 @@ pub fn create_aws_config_loader(cub_config: &CubConfig) -> ConfigLoader {
     struct ConfigToml {
         aws: AwsConfig,
     }
-    let mut config_loader = aws_config::defaults(BehaviorVersion::v2023_11_09());
+    let mut config_loader = aws_config::defaults(BehaviorVersion::v2024_03_28());
     if let Ok(ConfigToml {
         aws: AwsConfig {
             profile: profile_name,

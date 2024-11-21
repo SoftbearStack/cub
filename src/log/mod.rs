@@ -3,5 +3,6 @@
 
 /// Thread-safe logging.
 mod string_logger;
+mod tests;
 
 pub use self::string_logger::StringLogger;

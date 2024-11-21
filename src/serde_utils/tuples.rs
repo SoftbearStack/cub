@@ -11,7 +11,7 @@
 macro_rules! impl_wrapper_display {
     ($typ:ty) => {
         impl std::fmt::Display for $typ {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
                 std::fmt::Display::fmt(&self.0, f)
             }
         }
@@ -29,7 +29,7 @@ macro_rules! impl_wrapper_from_str {
     ($typ:ty, $inner:ty) => {
         impl std::str::FromStr for $typ {
             type Err = <$inner as std::str::FromStr>::Err;
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
+            fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
                 Ok(Self(std::str::FromStr::from_str(s)?))
             }
         }
@@ -73,14 +73,14 @@ macro_rules! impl_wrapper_int {
 
         impl TryFrom<$ui> for $typ {
             type Error = &'static str;
-            fn try_from(n: $ui) -> Result<Self, Self::Error> {
+            fn try_from(n: $ui) -> std::result::Result<Self, Self::Error> {
                 Ok(Self(n.try_into().map_err(|_| "magnitude")?))
             }
         }
 
         impl TryInto<$ui> for $typ {
             type Error = &'static str;
-            fn try_into(self) -> Result<$ui, Self::Error> {
+            fn try_into(self) -> std::result::Result<$ui, Self::Error> {
                 self.0.try_into().map_err(|_| "negative")
             }
         }
@@ -104,7 +104,7 @@ macro_rules! impl_wrapper_nz {
 
         impl TryFrom<$zb> for $typ {
             type Error = &'static str;
-            fn try_from(t: $zb) -> Result<Self, Self::Error> {
+            fn try_from(t: $zb) -> std::result::Result<Self, Self::Error> {
                 <$nz>::new(t).map(|nz| Self::from(nz)).ok_or("0 is invalid")
             }
         }
@@ -204,7 +204,7 @@ macro_rules! serde_transparent_tuple {
     ($typ: ident, $fmt: expr) => {
         impl serde::Serialize for $typ {
             /// Returns `serialize()` of the inner `T`.
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
             where
                 S: serde::Serializer,
             {
@@ -214,7 +214,7 @@ macro_rules! serde_transparent_tuple {
 
         impl<'de> serde::Deserialize<'de> for $typ {
             /// Returns `deserialize()` of the inner `T`.
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
             where
                 D: serde::Deserializer<'de>,
             {

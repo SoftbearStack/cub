@@ -35,12 +35,17 @@ mod aws_tests {
             .expect("update_tests.toml");
         let ddb_client = new_ddb_client(&cub_config).await;
         let h: u32 = 0;
+        let j: u32 = 0;
         let w: &str = "hello";
         let x: u32 = 1;
         let y: u32 = 2;
         let z: Option<u32> = None;
         match ddb_update(&ddb_client, "NoSuchTable", "NoSuchHash", &h)
             .expect("ddb_update failed")
+            .volatile_attribute("j", j)
+            .expect("volatile attribute failed")
+            .update_expression("r = if_not_exists(w, :j)")
+            .expect("update expression failed")
             .attribute("i_am_a_str", w)
             .expect("w attribute failed")
             .attribute("i_must_exist_x", x)

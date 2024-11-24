@@ -5,6 +5,8 @@
 mod b64;
 /// Given a user agent `String` determine whether it is a web scaping bot.
 mod bot;
+/// A wrapper around Dynamo DB client updates.
+mod ddbupdate;
 /// A wrapper around Dynamo DB client.
 mod dynamo;
 /// A wrapper to run a router via AWS API Gateway and Lambda Proxy.
@@ -22,6 +24,7 @@ mod websocket;
 
 pub use crate::aws::b64::{b64_to_u64, u64_to_b64};
 pub use crate::aws::bot::user_agent_is_bot;
+pub use crate::aws::ddbupdate::{ddb_update, DynamoUpdateBuilder};
 pub use crate::aws::dynamo::{
     create_aws_config_loader, create_ddb_item, delete_ddb_item, delete_ddb_ranged_item,
     describe_ddb_table_length, get_ddb_item, get_ddb_ranged_item, load_aws_config, new_ddb_client,

@@ -229,7 +229,7 @@ pub trait UnixTime: Sized + Clone {
     /// Adds milliseconds to a Unix date/time and returns the result.
     fn add_millis(&self, m: u64) -> Self {
         TryInto::<i64>::try_into(m)
-            .map(|m| Self::from_i64(self.to_i64().saturating_add(m)))
+            .map(|m| self.add_signed_millis(m))
             .unwrap_or(Self::MAX)
     }
 
@@ -241,6 +241,31 @@ pub trait UnixTime: Sized + Clone {
     /// Adds seconds to a Unix date/time and returns the result.
     fn add_seconds(&self, s: u64) -> Self {
         self.add_millis(s * Self::MILLIS_PER_SECOND)
+    }
+
+    /// Adds (or subtracts) hours to (or from) a Unix date/time and returns the result.
+    fn add_signed_hours(&self, h: i64) -> Self {
+        self.add_signed_millis(h * Self::MILLIS_PER_HOUR as i64)
+    }
+
+    /// Adds (or subtracts) millis to (or from) a Unix date/time and returns the result.
+    fn add_signed_millis(&self, m: i64) -> Self {
+        Self::from_i64(self.to_i64().saturating_add(m))
+    }
+
+    /// Adds (or subtracts) minutes to (or from) a Unix date/time and returns the result.
+    fn add_signed_minutes(&self, m: i64) -> Self {
+        self.add_signed_millis(m * Self::MILLIS_PER_MINUTE as i64)
+    }
+
+    /// Adds (or subtracts) seconds to (or from) a Unix date/time and returns the result.
+    fn add_signed_seconds(&self, s: i64) -> Self {
+        self.add_signed_millis(s * Self::MILLIS_PER_SECOND as i64)
+    }
+
+    /// Adds (or subtracts) weeks to (or from) a Unix date/time and returns the result.
+    fn add_signed_weeks(&self, w: i64) -> Self {
+        self.add_signed_millis(w * Self::MILLIS_PER_WEEK as i64)
     }
 
     /// Adds weeks to a Unix date/time and returns the result.
@@ -256,13 +281,9 @@ pub trait UnixTime: Sized + Clone {
 
     /// Returns the date/time rounded down to days.  (That is, date/time of the
     /// midnight which precedes the specified time.)
-    #[cfg(feature = "chrono")]
     fn floor_days(&self) -> Self {
-        // This can't be accomplished via simple math because, due to DST, some days
-        // have 23 hours, some 24, and some 25.
-        let (year, month, day, _hour, _minute, _second) = self.ymdhms();
-        // The unwrap below can't happen unless self is near `Self::MIN`.
-        Self::from_ymdhms(year, month, day, 0, 0, 0).unwrap_or(Self::MIN)
+        // This can be accomplished via simple math because UTC has no TZ.
+        Self::from_i64((self.to_i64() / Self::MILLIS_PER_DAY as i64) * Self::MILLIS_PER_DAY as i64)
     }
 
     /// Returns the date/time rounded down to hours.

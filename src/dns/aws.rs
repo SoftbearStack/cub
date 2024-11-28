@@ -48,12 +48,12 @@ impl AwsDns {
             datacenter,
             name,
             record_type,
-            target,
+            targets,
             ttl_sec,
             ..
         } = record;
         logger.trace(format!(
-            "domain {domain_id} hostname {name} create {record_type:?} record {target}",
+            "domain {domain_id} hostname {name} create {record_type:?} record {targets:?}",
         ));
         let geo_proximity_location = datacenter.as_ref().map(|dc| {
             GeoProximityLocation::builder()
@@ -79,12 +79,17 @@ impl AwsDns {
                             .name(name)
                             .r#type(record_type)
                             .ttl(ttl_sec as i64)
-                            .resource_records(
-                                ResourceRecord::builder()
-                                    .value(target)
-                                    .build()
-                                    .map_err(Self::map_build_err)?,
-                            )
+                            .set_resource_records(Some(
+                                targets
+                                    .into_iter()
+                                    .map(|target| {
+                                        ResourceRecord::builder()
+                                            .value(target)
+                                            .build()
+                                            .map_err(Self::map_build_err)
+                                    })
+                                    .collect::<Result<Vec<_>, _>>()?,
+                            ))
                             .build()
                             .map_err(Self::map_build_err)?,
                     )
@@ -234,12 +239,11 @@ impl AwsDns {
                             gpl.aws_region()
                                 .map(|aws_region| CloudDatacenter::from_aws_region(aws_region))
                         }),
-                        target: rrs
+                        targets: rrs
                             .resource_records()
                             .iter()
-                            .map(|rr| rr.value())
-                            .collect::<Vec<_>>()
-                            .join("\n"),
+                            .map(|rr| rr.value().to_owned())
+                            .collect::<Vec<_>>(),
                         ttl_sec: rrs.ttl().map(|ttl| ttl as usize).unwrap_or(Self::TTL_SECS),
                         record_type: rrs.r#type().clone(),
                     },
@@ -303,15 +307,30 @@ impl AwsDns {
             id,
             ExtendedDnsRecord {
                 record_type,
-                target,
+                targets,
+                datacenter,
                 ..
             },
         ) in id_records.iter()
         {
             match record_type {
                 RrType::A => {
-                    let ip = Self::parse_ip(&target, &domain, &fq_hostname)?;
-                    if !(ipgeos.contains_key(&ip) && found.insert(ip)) {
+                    let ips = targets
+                        .iter()
+                        .map(|target| Self::parse_ip(&target, &domain, &fq_hostname))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    // AWS supports one A record per Option<CloudDatacenter>. If the record isn't
+                    // exactly right, must remove it.
+                    // TODO: if the new TTL doesn't match the previous TTL, re-create the record.
+                    if ips.iter().all(|ip| {
+                        ipgeos.get(ip).is_some_and(|dc| dc == datacenter) && !found.contains(ip)
+                    }) && ipgeos
+                        .iter()
+                        .filter(|(_, geo)| *geo == datacenter)
+                        .all(|(ip, _)| ips.contains(ip))
+                    {
+                        found.extend(ips);
+                    } else {
                         removals.push(id.clone());
                     }
                 }
@@ -324,17 +343,22 @@ impl AwsDns {
             }
         }
 
-        let mut adds: Vec<ExtendedDnsRecord> = Vec::new();
+        let mut adds: HashMap<Option<CloudDatacenter>, ExtendedDnsRecord> = HashMap::new();
+
         for (ip, datacenter) in ipgeos {
-            if !found.contains(&ip) {
-                adds.push(ExtendedDnsRecord {
+            if found.contains(&ip) {
+                continue;
+            }
+            let record = adds
+                .entry(datacenter.clone())
+                .or_insert_with(|| ExtendedDnsRecord {
                     datacenter,
                     name: fq_hostname.to_owned(),
                     record_type: RrType::A,
-                    target: ip.to_string(),
+                    targets: Vec::new(),
                     ttl_sec,
                 });
-            }
+            record.targets.push(ip.to_string());
         }
 
         for record_id in removals {
@@ -342,7 +366,7 @@ impl AwsDns {
         }
 
         // TODO: can set these in a single command.
-        for record in adds {
+        for record in adds.into_values() {
             self.create_domain_record(&domain_id, record, &logger)
                 .await?;
         }
@@ -360,7 +384,8 @@ impl CloudDns for AwsDns {
             println!("domain_id={domain_id}");
         }
 
-        let list = self.list_route53_records(&domain_id).await?;
+        let list: Vec<(AwsRecordId, ExtendedDnsRecord)> =
+            self.list_route53_records(&domain_id).await?;
         let list_len = list.len();
 
         let mut a_ipgeos: HashMap<String, HashMap<IpAddr, Option<CloudDatacenter>>> =
@@ -372,7 +397,7 @@ impl CloudDns for AwsDns {
             ExtendedDnsRecord {
                 datacenter,
                 name: hostname,
-                target,
+                targets,
                 record_type,
                 ..
             },
@@ -380,17 +405,31 @@ impl CloudDns for AwsDns {
         {
             match record_type {
                 RrType::A => {
-                    let ip = Self::parse_ip(&target, &domain, &hostname)?;
-                    a_ipgeos
-                        .entry(hostname)
-                        .or_insert(HashMap::new())
-                        .insert(ip, datacenter);
+                    let ips = targets
+                        .into_iter()
+                        .map(|target| Self::parse_ip(&target, &domain, &hostname))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let entry = a_ipgeos.entry(hostname).or_insert(HashMap::new());
+                    for ip in ips {
+                        entry.insert(ip, datacenter.clone());
+                    }
                 }
                 RrType::Cname => {
-                    other.insert(hostname, DnsRecord::Cname(target));
+                    if targets.len() == 1 {
+                        other.insert(
+                            hostname,
+                            DnsRecord::Cname(targets.into_iter().next().unwrap()),
+                        );
+                    }
                 }
                 RrType::Txt => {
-                    other.insert(hostname, DnsRecord::Txt(target));
+                    // TODO: Support multiple TXT
+                    if targets.len() == 1 {
+                        other.insert(
+                            hostname,
+                            DnsRecord::Txt(targets.into_iter().next().unwrap()),
+                        );
+                    }
                 }
                 _ => {}
             }
@@ -477,7 +516,7 @@ impl CloudDns for AwsDns {
                         datacenter: None,
                         name: fq_hostname,
                         record_type: RrType::Txt,
-                        target: Self::double_quoted(&text),
+                        targets: vec![Self::double_quoted(&text)],
                         ttl_sec,
                     },
                     &logger,
@@ -553,7 +592,7 @@ impl CloudDns for AwsDns {
                     id,
                     ExtendedDnsRecord {
                         record_type,
-                        target,
+                        targets,
                         ..
                     },
                 ) in id_records.iter()
@@ -563,7 +602,7 @@ impl CloudDns for AwsDns {
                             removals.push(id.clone());
                         }
                         RrType::Cname => {
-                            if !found && *target == link {
+                            if !found && targets.len() == 1 && targets[0] == link {
                                 found = true;
                             } else {
                                 removals.push(id.clone());
@@ -586,7 +625,7 @@ impl CloudDns for AwsDns {
                             datacenter: None,
                             name: fq_hostname,
                             record_type: RrType::Cname,
-                            target: link,
+                            targets: vec![link],
                             ttl_sec,
                         },
                         &logger,
@@ -626,7 +665,7 @@ pub struct AwsRecordId(ResourceRecordSet);
 struct ExtendedDnsRecord {
     datacenter: Option<CloudDatacenter>,
     name: String,
-    target: String,
+    targets: Vec<String>,
     ttl_sec: usize,
     record_type: RrType,
 }

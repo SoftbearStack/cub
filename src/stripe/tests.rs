@@ -11,7 +11,7 @@ mod stripe_tests {
         .toml_str(
             r#"
                 [stripe]
-                secret_key = "sk_test_51LcdlTLmirvo61yjaytjXs8YRPPRGdLnLPZLf7v8iukPlBAfm9UL5EPG2COUS85ggptC3lqxl1DNGXrAfCjIpHYw00Oa5xzSAC"
+                secret_key = "sk_test_1234"
             "#,
         )
         .debug(true)

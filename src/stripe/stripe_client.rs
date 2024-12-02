@@ -32,6 +32,9 @@ impl StripeClient {
         let ConfigToml {
             stripe: StripeConfig { secret_key },
         } = cub_config.get().expect("stripe.toml");
+        if secret_key.len() < 16 {
+            panic!("{secret_key}: not a valid secret key for stripe");
+        }
 
         let mut default_headers = HeaderMap::new();
         let mut auth_header = HeaderValue::from_str(&format!("Bearer {}", secret_key)).unwrap();

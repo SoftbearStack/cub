@@ -8,15 +8,8 @@ CUB (Candywrapper Utility Bridge), is a collection of utility functions with thi
 
 * `rustup` ([see instructions here](https://rustup.rs/))
 * GNU `make`
-* On Linux, [musl](http://git.musl-libc.org/cgit/musl).
 
 ## Building
-
-One-time step to update rust build tools.
-
-```
-make rustup
-```
 
 To build the library:
 

@@ -138,7 +138,7 @@ pub async fn delete_ddb_ranged_item<HK: Serialize, RK: Serialize>(
 }
 
 /// Gets the length of the table.
-pub async fn describe_ddb_table_length<HK: Serialize>(
+pub async fn describe_ddb_table_length(
     client: &DynamoDbClient,
     table: &'static str,
 ) -> Result<usize, Error> {

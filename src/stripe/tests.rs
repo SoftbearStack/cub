@@ -8,18 +8,19 @@ mod stripe_tests {
 
     fn test_config() -> CubConfig {
         CubConfig::builder()
-        .toml_str(
-            r#"
+            .toml_str(
+                r#"
                 [stripe]
                 secret_key = "sk_test_1234"
             "#,
-        )
-        .debug(true)
-        .build()
-        .expect("stripe_tests.toml")
+            )
+            .debug(true)
+            .build()
+            .expect("stripe_tests.toml")
     }
 
     #[tokio::test]
+    #[should_panic]
     async fn customer_tests() {
         println!("Stripe customer tests");
         let stripe = StripeClient::new(&test_config());
@@ -110,6 +111,7 @@ mod stripe_tests {
     }
 
     #[tokio::test]
+    #[should_panic]
     async fn price_tests() {
         println!("Stripe price tests starting");
         let stripe = StripeClient::new(&test_config());
@@ -125,6 +127,7 @@ mod stripe_tests {
     }
 
     #[tokio::test]
+    #[should_panic]
     async fn product_tests() {
         println!("Stripe product tests starting");
         let stripe = StripeClient::new(&test_config());

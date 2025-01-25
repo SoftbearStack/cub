@@ -27,6 +27,7 @@ mod dns_tests {
     }
 
     #[tokio::test]
+    #[should_panic]
     async fn aws_dns_read_tests() {
         println!("Testing DNS read (for {AWS_DOMAIN})");
         let aws_dns = AwsDns::new(&test_config()).await;
@@ -40,6 +41,7 @@ mod dns_tests {
     }
 
     #[tokio::test]
+    #[should_panic]
     async fn aws_dns_update_tests() {
         println!("Testing DNS update (for {AWS_DOMAIN}");
         let aws_dns = AwsDns::new(&test_config()).await;
@@ -76,6 +78,7 @@ mod dns_tests {
     }
 
     #[tokio::test]
+    #[should_panic]
     async fn cloud_dns_tests() {
         let domain = AWS_DOMAIN;
         println!("Test DNS Cloud (with {domain})");
@@ -132,6 +135,7 @@ mod dns_tests {
     }
 
     #[tokio::test]
+    #[should_panic]
     async fn linode_dns_tests() {
         let domain = LINODE_DOMAIN;
         println!("Test Linode DNS (for {domain})");

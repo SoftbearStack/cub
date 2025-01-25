@@ -19,11 +19,34 @@ pub struct StringLogger {
 }
 
 impl StringLogger {
-    /// Call a function which returns a log and either trace that log (if any) or the error.
-    pub fn append(&self, line: String, result: Result<String, Error>) -> Result<String, Error> {
+    /// Call a function which returns a logger and either indent and trace its log
+    /// (if any) or else the error.
+    pub fn append(
+        &self,
+        line: String,
+        result: Result<StringLogger, Error>,
+    ) -> Result<StringLogger, Error> {
+        let two_spaces = "  ";
         match &result {
-            Ok(log) => self.trace(log.to_owned()),
-            Err(e) => self.warn(format!("{line} failed\n{e:?}")),
+            Ok(string_logger) => {
+                self.trace(format!("{line} succeeded:"));
+                if let (Ok(mut to_inner), Ok(from_inner)) =
+                    (self.inner.lock(), string_logger.inner.lock())
+                {
+                    if !from_inner.lines.is_empty() {
+                        if from_inner.warn {
+                            to_inner.warn = true;
+                        }
+                        let lines =
+                            format!("{two_spaces}{}", from_inner.lines.join(&format!("\n{two_spaces}")));
+                        if self.debug {
+                            println!("{lines}");
+                        }
+                        to_inner.lines.push(lines);
+                    }
+                }
+            }
+            Err(e) => self.warn(format!("{line} failed:\n{two_spaces}{e:?}")),
         }
         result
     }
@@ -93,6 +116,16 @@ impl StringLogger {
             debug,
             inner: Arc::new(Mutex::new(Default::default())),
         }
+    }
+
+    /// Call a function which returns a string and either prepend that string
+    /// (if any) as trace line(s) or else the error.
+    pub fn prepend(&self, line: String, result: Result<String, Error>) -> Result<String, Error> {
+        match &result {
+            Ok(log) => self.trace(format!("{log}\n{line} succeeded")),
+            Err(e) => self.warn(format!("{line} failed\n{e:?}")),
+        }
+        result
     }
 
     /// Add a trace line to this logger.

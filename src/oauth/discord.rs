@@ -4,6 +4,7 @@
 use super::Url;
 use crate::common::{AuthenticatedId, CubConfig, Identity, UserName};
 use crate::serde_utils::is_default;
+use crate::{NonZeroUnixSeconds, UnixTime};
 use hyper::header::{HeaderMap, HeaderValue};
 use oauth2::basic::{BasicClient, BasicTokenType};
 use oauth2::{
@@ -13,6 +14,7 @@ use oauth2::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::num::NonZeroU64;
+use std::sync::Mutex;
 use std::time::Duration;
 
 const DEBUG: bool = false;
@@ -23,6 +25,7 @@ pub struct OAuth2Service {
     http_api_client: reqwest::Client,
     localhost_redirect_url: Option<String>,
     oauth2_client: BasicClient,
+    channel_name_to_id_cache: Mutex<HashMap<String, (String, NonZeroUnixSeconds)>>,
 }
 
 impl OAuth2Service {
@@ -88,6 +91,7 @@ impl OAuth2Service {
             http_auth_client,
             localhost_redirect_url,
             oauth2_client,
+            channel_name_to_id_cache: Default::default(),
         }
     }
 
@@ -97,7 +101,7 @@ impl OAuth2Service {
                 .exchange_code(AuthorizationCode::new(code))
                 .request_async(async_http_client)
                 .await
-                .map_err(|e| e.to_string())?,
+                .map_err(|e| format!("{e:?}"))?,
         )
         .await
     }
@@ -309,30 +313,53 @@ impl OAuth2Service {
         ping: bool,
         reply_to_id: Option<NonZeroU64>,
     ) -> Result<(), String> {
-        #[derive(Deserialize)]
-        struct Channel {
-            id: String,
-            name: String,
-        }
+        let channel_id = {
+            let cache = self.channel_name_to_id_cache.lock().unwrap();
+            cache.get(channel_name).cloned().and_then(|(id, time)| {
+                if NonZeroUnixSeconds::now().minutes_since(time) > 15 {
+                    // Consider the cache expired.
+                    None
+                } else {
+                    Some(id)
+                }
+            })
+        };
 
-        let channels: Vec<Channel> = self
-            .http_api_client
-            .get(format!(
-                "https://discord.com/api/guilds/{}/channels",
-                self.guild_id
-            ))
-            .send()
-            .await
-            .map_err(|e| e.to_string())?
-            .json::<Vec<Channel>>()
-            .await
-            .map_err(|e| e.to_string())?;
+        let channel_id = if let Some(channel_id) = channel_id {
+            channel_id
+        } else {
+            #[derive(Deserialize)]
+            struct Channel {
+                id: String,
+                name: String,
+            }
 
-        let channel_id = channels
-            .into_iter()
-            .find(|c| c.name == channel_name)
-            .map(|c| c.id)
-            .ok_or_else(|| String::from("could not find channel"))?;
+            let channels: Vec<Channel> = self
+                .http_api_client
+                .get(format!(
+                    "https://discord.com/api/guilds/{}/channels",
+                    self.guild_id
+                ))
+                .send()
+                .await
+                .map_err(|e| e.to_string())?
+                .json::<Vec<Channel>>()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            let channel_id = channels
+                .into_iter()
+                .find(|c| c.name == channel_name)
+                .map(|c| c.id)
+                .ok_or_else(|| String::from("could not find channel"))?;
+
+            self.channel_name_to_id_cache.lock().unwrap().insert(
+                channel_name.to_owned(),
+                (channel_id.clone(), NonZeroUnixSeconds::now()),
+            );
+
+            channel_id
+        };
 
         #[derive(Serialize)]
         struct MessageReference {
@@ -363,18 +390,6 @@ impl OAuth2Service {
                 channel_id
             ))
             .json(&create_message)
-            .send()
-            .await
-            .map_err(|e| e.to_string())?
-            .text()
-            .await
-            .map_err(|e| e.to_string())?;
-
-        self.http_api_client
-            .post(format!(
-                "https://discord.com/api/channels/{}/messages",
-                channel_id
-            ))
             .send()
             .await
             .map_err(|e| e.to_string())?

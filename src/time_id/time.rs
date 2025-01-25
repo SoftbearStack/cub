@@ -279,6 +279,18 @@ pub trait UnixTime: Sized + Clone {
         self.to_date_time_utc().day0() + 1
     }
 
+    /// Returns the number of days since the specified Unix date/time.
+    fn days_since(&self, unix_time: impl UnixTime) -> u64 {
+        self.millis_since(unix_time) / Self::MILLIS_PER_DAY
+    }
+
+    /// Returns the number of days which have elapsed since the 1970 epoch.
+    fn days_since_epoch(&self) -> u32 {
+        (self.to_i64() as u64 / Self::MILLIS_PER_DAY)
+            .try_into()
+            .unwrap_or_default()
+    }
+
     /// Returns the date/time rounded down to days.  (That is, date/time of the
     /// midnight which precedes the specified time.)
     fn floor_days(&self) -> Self {
@@ -339,6 +351,11 @@ pub trait UnixTime: Sized + Clone {
         }?;
         let dt: DateTime<Utc> = Utc::from_utc_datetime(&Utc, &ndt);
         Ok(Self::from_i64(dt.timestamp_millis()))
+    }
+
+    /// Returns the number of hours since the specified Unix date/time.
+    fn hours_since(&self, unix_time: impl UnixTime) -> u64 {
+        self.millis_since(unix_time) / Self::MILLIS_PER_HOUR
     }
 
     /// Returns the milliseconds the specified Unix date/time.
@@ -410,6 +427,11 @@ pub trait UnixTime: Sized + Clone {
 
     /// Returns i64 corresponding to time.
     fn to_i64(&self) -> i64;
+
+    /// Returns the number of weeks since the specified Unix date/time.
+    fn weeks_since(&self, unix_time: impl UnixTime) -> u64 {
+        self.millis_since(unix_time) / Self::MILLIS_PER_WEEK
+    }
 
     /// Year, e.g. 2024.
     #[cfg(feature = "chrono")]

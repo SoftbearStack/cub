@@ -1,6 +1,6 @@
 [package]
 name = "cub"
-version = "0.1.7"
+version = "0.1.10"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,7 +14,7 @@ hosts = [ "async-trait", "axum", "hyper", "reqwest", "serde_json", "toml" ]
 jwt = [ "jsonwebtoken", "serde_json", "toml" ]
 linode = [ ]
 log = [ ]
-oauth = [ "chrono", "hyper", "oauth2", "reqwest", "toml" ]
+oauth = [ "chrono", "hyper", "oauth2", "reqwest", "time_id", "toml" ]
 stripe = [ "hyper", "reqwest", "tokio", "toml" ]
 time_id = [ "rand" ]
 videos = [ "async-trait", "axum", "hyper", "reqwest", "serde_json", "toml" ]

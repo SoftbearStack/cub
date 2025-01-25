@@ -3,6 +3,7 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::common::Error;
     use crate::log::StringLogger;
 
     #[test]
@@ -29,5 +30,12 @@ mod tests {
         log4.warn(format!("this is a warning"));
         println!("log4 contains_warnings = {}", log4.contains_warnings());
         println!("{}", log4.to_string());
+
+        let log5 = StringLogger::default();
+        let ok_result = Ok(log1);
+        let _ = log5.append(format!("log5"), ok_result);
+        let err_result = Err(Error::String("this is an error".to_string()));
+        let _ = log5.append(format!("log5"), err_result);
+        println!("{}", log5.to_string());
     }
 }

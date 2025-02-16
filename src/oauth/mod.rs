@@ -1,8 +1,12 @@
 // SPDX-FileCopyrightText: 2024 Softbear, Inc.
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+/// A client of one or more OAuth2 provider APIs.
+mod client;
 mod discord;
-/// A wrapper around a set of OAuth2 provider APIs.
-mod oauth;
+mod google;
+/// A wrapper around a particular OAuth2 provider API.
+mod provider;
 
-pub use self::oauth::{new_oauth_client, OAuthClient, OAuthProvider, Url};
+pub use self::client::{new_oauth_client, OAuthClient, Url};
+pub use self::provider::{OAuthProvider, OAuthService};

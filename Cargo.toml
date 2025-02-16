@@ -1,6 +1,6 @@
 [package]
 name = "cub"
-version = "0.1.10"
+version = "0.1.12"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,7 +14,7 @@ hosts = [ "async-trait", "axum", "hyper", "reqwest", "serde_json", "toml" ]
 jwt = [ "jsonwebtoken", "serde_json", "toml" ]
 linode = [ ]
 log = [ ]
-oauth = [ "chrono", "hyper", "oauth2", "reqwest", "time_id", "toml" ]
+oauth = [ "async-trait", "chrono", "hyper", "oauth2", "reqwest", "time_id", "toml" ]
 stripe = [ "hyper", "reqwest", "tokio", "toml" ]
 time_id = [ "rand" ]
 videos = [ "async-trait", "axum", "hyper", "reqwest", "serde_json", "toml" ]
@@ -31,7 +31,7 @@ aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio", 
 aws-sdk-translate = { version = "1", default-features = false, features = ["rt-tokio", "rustls"], optional = true }
 axum = { version = "0.7.5", features = ["multipart"], optional = true }
 base64 = { version = "0.22", optional = true }
-bitcode = {version = "0.6.3", default-features = false, features = ["derive"], git = "https://github.com/SoftbearStudios/bitcode", optional = true }
+bitcode = {version = "0.6.4", default-features = false, features = ["derive"], optional = true }
 # bitcode = { version = "0", features = ["derive"], default-features = false, optional = true }
 chrono = { version = "0.4", optional = true }
 futures = { version = "0", optional = true }
@@ -53,4 +53,4 @@ tokio = { version = "1", optional = true }
 toml = { version = "0.7", optional = true }
 tower-http = { version = "0.5", features = [ "fs" ], optional = true }
 urlencoding = { version = "2.1", optional = true }
-yew = { version = "0.20.0", features = ["ssr"], optional = true }
+yew = { version = "0.21.0", features = ["ssr"], optional = true }

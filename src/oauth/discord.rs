@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2024 Softbear, Inc.
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::Url;
-use crate::common::{AuthenticatedId, CubConfig, Identity, UserName};
+use super::{OAuthProvider, OAuthService, Url};
+use crate::common::{AuthenticatedId, CubConfig, Error, Identity, UserName};
 use crate::serde_utils::is_default;
 use crate::{NonZeroUnixSeconds, UnixTime};
+use async_trait::async_trait;
 use hyper::header::{HeaderMap, HeaderValue};
 use oauth2::basic::{BasicClient, BasicTokenType};
 use oauth2::{
@@ -19,7 +20,7 @@ use std::time::Duration;
 
 const DEBUG: bool = false;
 
-pub struct OAuth2Service {
+pub struct DiscordOAuth2Service {
     guild_id: NonZeroU64,
     http_auth_client: reqwest::Client,
     http_api_client: reqwest::Client,
@@ -28,8 +29,8 @@ pub struct OAuth2Service {
     channel_name_to_id_cache: Mutex<HashMap<String, (String, NonZeroUnixSeconds)>>,
 }
 
-impl OAuth2Service {
-    pub fn new(cub_config: &CubConfig) -> Self {
+impl DiscordOAuth2Service {
+    pub fn new(cub_config: &CubConfig) -> Result<Self, Error> {
         #[derive(Deserialize)]
         struct DiscordConfig {
             bot_token: String,
@@ -53,7 +54,7 @@ impl OAuth2Service {
                     localhost_redirect_url,
                     redirect_url,
                 },
-        } = cub_config.get().expect("discord.toml");
+        } = cub_config.get().map_err(|e| Error::String(e.to_string()))?;
 
         let bot_token_header = HeaderValue::from_str(&format!("Bot {}", bot_token))
             .map(|h| {
@@ -85,67 +86,20 @@ impl OAuth2Service {
         )
         .set_redirect_uri(RedirectUrl::new(redirect_url).expect("invalid redirect URL"));
 
-        Self {
+        Ok(Self {
             guild_id,
             http_api_client,
             http_auth_client,
             localhost_redirect_url,
             oauth2_client,
             channel_name_to_id_cache: Default::default(),
-        }
-    }
-
-    pub async fn authenticated(&self, code: String) -> Result<Identity, String> {
-        self.auth_token_to_identity(
-            self.oauth2_client
-                .exchange_code(AuthorizationCode::new(code))
-                .request_async(async_http_client)
-                .await
-                .map_err(|e| format!("{e:?}"))?,
-        )
-        .await
-    }
-
-    // For diagnostic purposes.
-    pub async fn authenticated_by_localhost(&self, code: String) -> Result<Identity, String> {
-        let Some(localhost_redirect_url) = self.localhost_redirect_url.clone() else {
-            return self.authenticated(code).await;
-        };
-        let Ok(url) = RedirectUrl::new(localhost_redirect_url) else {
-            return self.authenticated(code).await;
-        };
-        let client = self.oauth2_client.clone().set_redirect_uri(url);
-        self.auth_token_to_identity(
-            client
-                .exchange_code(AuthorizationCode::new(code))
-                .request_async(async_http_client)
-                .await
-                .map_err(|e| e.to_string())?,
-        )
-        .await
-    }
-
-    pub async fn detail(
-        &self,
-        oauth_id: Option<&AuthenticatedId>,
-        name: &str,
-    ) -> Result<String, String> {
-        match (oauth_id, name) {
-            (Some(oauth_id), "roles") => {
-                let discord_id = Self::parse_oauth_id(oauth_id)?;
-                Ok(self
-                    .get_roles_csv(discord_id)
-                    .await
-                    .map_err(|e| format!("cannot get Discord roles: {e}"))?)
-            }
-            _ => Err(format!("{name}: not a supported detail for Discord")),
-        }
+        })
     }
 
     async fn auth_token_to_identity(
         &self,
         token: StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
-    ) -> Result<Identity, String> {
+    ) -> Result<Identity, Error> {
         if DEBUG {
             println!(
                 "discord token expiry: {:?}",
@@ -172,13 +126,17 @@ impl OAuth2Service {
             .bearer_auth(token.access_token().secret())
             .send()
             .await
-            .map_err(|e| e.to_string())?
+            .map_err(|e| Error::String(e.to_string()))?
             .json::<User>()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| Error::String(e.to_string()))?;
 
-        let parsed = user.id.parse::<u64>().map_err(|e| e.to_string())?;
-        let discord_id = NonZeroU64::new(parsed).ok_or_else(|| String::from("discord id was 0"))?;
+        let parsed = user
+            .id
+            .parse::<u64>()
+            .map_err(|e| Error::String(e.to_string()))?;
+        let discord_id =
+            NonZeroU64::new(parsed).ok_or_else(|| Error::String("discord id was 0".to_string()))?;
 
         Ok(Identity {
             login_id: AuthenticatedId(format!("discord/{}", discord_id)),
@@ -190,7 +148,7 @@ impl OAuth2Service {
         })
     }
 
-    async fn get_roles_csv(&self, discord_id: NonZeroU64) -> Result<String, String> {
+    async fn get_roles_csv(&self, discord_id: NonZeroU64) -> Result<String, Error> {
         // https://discord.com/developers/docs/resources/guild#guild-member-object
         #[derive(Debug, Deserialize)]
         struct Membership {
@@ -210,17 +168,20 @@ impl OAuth2Service {
             .get(members_endpoint)
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| Error::String(e.to_string()))?;
         let status_code = response.status();
         if status_code != reqwest::StatusCode::OK {
-            let text = response.text().await.map_err(|e| e.to_string())?;
-            let error = format!("Discord members error {status_code}: {text}");
+            let text = response
+                .text()
+                .await
+                .map_err(|e| Error::String(e.to_string()))?;
+            let error = Error::String(format!("Discord members error {status_code}: {text}"));
             return Err(error);
         }
         let membership: Membership = response
             .json::<Membership>()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| Error::String(e.to_string()))?;
 
         if DEBUG {
             println!("membership is {:?}", membership);
@@ -242,10 +203,10 @@ impl OAuth2Service {
             .get(roles_endpoint)
             .send()
             .await
-            .map_err(|e| e.to_string())?
+            .map_err(|e| Error::String(e.to_string()))?
             .json::<Vec<Role>>()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| Error::String(e.to_string()))?;
 
         if DEBUG {
             println!("roles are {:?}", roles);
@@ -269,19 +230,75 @@ impl OAuth2Service {
         Ok(roles_csv)
     }
 
-    fn parse_oauth_id(oauth_id: &AuthenticatedId) -> Result<NonZeroU64, String> {
+    fn parse_oauth_id(oauth_id: &AuthenticatedId) -> Result<NonZeroU64, Error> {
         let Some((prefix, discord_id_s)) = oauth_id.as_str().split_once('/') else {
-            return Err(format!("{oauth_id}: invalid oauth ID"));
+            return Err(Error::String(format!("{oauth_id}: invalid oauth ID")));
         };
         if prefix != "discord" {
-            return Err(format!("{oauth_id}: not a Discord ID"));
+            return Err(Error::String(format!("{oauth_id}: not a Discord ID")));
         }
         discord_id_s
             .parse()
-            .map_err(|_| format!("{oauth_id}: invalid number"))
+            .map_err(|_| Error::String(format!("{oauth_id}: invalid number")))
+    }
+}
+
+#[async_trait]
+impl OAuthService for DiscordOAuth2Service {
+    async fn authenticated(&self, code: String) -> Result<Identity, Error> {
+        self.auth_token_to_identity(
+            self.oauth2_client
+                .exchange_code(AuthorizationCode::new(code))
+                .request_async(async_http_client)
+                .await
+                .map_err(|e| Error::String(format!("{e:?}")))?,
+        )
+        .await
     }
 
-    pub fn redirect(&self) -> Url {
+    // For diagnostic purposes.
+    async fn authenticated_by_localhost(&self, code: String) -> Result<Identity, Error> {
+        let Some(localhost_redirect_url) = self.localhost_redirect_url.clone() else {
+            return self.authenticated(code).await;
+        };
+        let Ok(url) = RedirectUrl::new(localhost_redirect_url) else {
+            return self.authenticated(code).await;
+        };
+        let client = self.oauth2_client.clone().set_redirect_uri(url);
+        self.auth_token_to_identity(
+            client
+                .exchange_code(AuthorizationCode::new(code))
+                .request_async(async_http_client)
+                .await
+                .map_err(|e| Error::String(e.to_string()))?,
+        )
+        .await
+    }
+
+    async fn detail(
+        &self,
+        oauth_id: Option<&AuthenticatedId>,
+        name: &str,
+    ) -> Result<String, Error> {
+        match (oauth_id, name) {
+            (Some(oauth_id), "roles") => {
+                let discord_id = Self::parse_oauth_id(oauth_id)?;
+                Ok(self
+                    .get_roles_csv(discord_id)
+                    .await
+                    .map_err(|e| Error::String(format!("cannot get Discord roles: {e}")))?)
+            }
+            _ => Err(Error::String(format!(
+                "{name}: not a supported detail for Discord"
+            ))),
+        }
+    }
+
+    fn provider(&self) -> OAuthProvider {
+        OAuthProvider::Discord
+    }
+
+    fn redirect(&self) -> Url {
         let (auth_url, _csrf_token) = self
             .oauth2_client
             .authorize_url(CsrfToken::new_random)
@@ -291,7 +308,7 @@ impl OAuth2Service {
     }
 
     // For diagnostic purposes.
-    pub fn redirect_to_localhost(&self) -> Url {
+    fn redirect_to_localhost(&self) -> Url {
         let Some(localhost_redirect_url) = self.localhost_redirect_url.clone() else {
             return self.redirect();
         };
@@ -306,13 +323,13 @@ impl OAuth2Service {
         auth_url
     }
 
-    pub async fn send_message(
+    async fn send_message(
         &self,
         channel_name: &str,
         message: &str,
         ping: bool,
         reply_to_id: Option<NonZeroU64>,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let channel_id = {
             let cache = self.channel_name_to_id_cache.lock().unwrap();
             cache.get(channel_name).cloned().and_then(|(id, time)| {
@@ -342,16 +359,16 @@ impl OAuth2Service {
                 ))
                 .send()
                 .await
-                .map_err(|e| e.to_string())?
+                .map_err(|e| Error::String(e.to_string()))?
                 .json::<Vec<Channel>>()
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| Error::String(e.to_string()))?;
 
             let channel_id = channels
                 .into_iter()
                 .find(|c| c.name == channel_name)
                 .map(|c| c.id)
-                .ok_or_else(|| String::from("could not find channel"))?;
+                .ok_or_else(|| Error::String("could not find channel".to_string()))?;
 
             self.channel_name_to_id_cache.lock().unwrap().insert(
                 channel_name.to_owned(),
@@ -392,10 +409,10 @@ impl OAuth2Service {
             .json(&create_message)
             .send()
             .await
-            .map_err(|e| e.to_string())?
+            .map_err(|e| Error::String(e.to_string()))?
             .text()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| Error::String(e.to_string()))?;
 
         Ok(())
     }

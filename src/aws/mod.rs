@@ -11,6 +11,8 @@ mod ddbupdate;
 mod dynamo;
 /// A wrapper to run a router via AWS API Gateway and Lambda Proxy.
 mod lambda;
+/// A wrapper around large language models.
+mod llm;
 /// A wrapper around S3 client.
 mod s3;
 /// Run an `axum::Router` on incoming requests from a socket.
@@ -32,6 +34,7 @@ pub use crate::aws::dynamo::{
     to_dynamo_des, to_dynamo_item, to_dynamo_sen, to_dynamo_ses, update_ddb_item, DynamoDbClient,
 };
 pub use crate::aws::lambda::{is_lambda_env, run_router_on_lambda};
+pub use crate::aws::llm::{new_llm_client, prompt_llm, LlmClient, LlmOptions};
 pub use crate::aws::s3::{
     get_s3_item, list_s3_bucket, new_s3_client, presigned_s3_download_url, presigned_s3_upload_url,
     put_s3_item, S3Client,

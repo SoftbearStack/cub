@@ -1,37 +1,110 @@
 [package]
 name = "cub"
-version = "0.1.13"
+version = "0.1.15"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["aws", "bitcode", "dns", "hetzner", "hosts", "jwt", "linode", "log", "oauth", "stripe", "time_id", "videos"]
-aws = [ "anyhow", "aws-config", "aws-sdk-apigatewaymanagement", "aws-sdk-dynamodb", "aws-sdk-s3", "aws-sdk-translate", "axum", "base64", "futures", "hyper", "lambda_runtime", "pnet", "serde_dynamo", "serde_json", "structopt", "tokio", "toml", "tower-http", "urlencoding" ]
-dns = [ "async-trait", "aws-sdk-route53", "axum", "hyper", "reqwest", "serde_json", "toml" ]
-hetzner = [ ]
-hosts = [ "async-trait", "axum", "hyper", "reqwest", "serde_json", "toml" ]
-jwt = [ "jsonwebtoken", "serde_json", "toml" ]
-linode = [ ]
-log = [ ]
-oauth = [ "async-trait", "chrono", "hyper", "oauth2", "reqwest", "time_id", "toml" ]
-stripe = [ "hyper", "reqwest", "tokio", "toml" ]
-time_id = [ "rand" ]
-videos = [ "async-trait", "axum", "hyper", "reqwest", "serde_json", "toml" ]
-yew_markdown = [ "yew" ]
+default = [
+    "aws",
+    "bitcode",
+    "dns",
+    "hetzner",
+    "hosts",
+    "jwt",
+    "linode",
+    "log",
+    "oauth",
+    "stripe",
+    "time_id",
+    "videos",
+]
+aws = [
+    "anyhow",
+    "aws-config",
+    "aws-sdk-apigatewaymanagement",
+    "aws-sdk-bedrockruntime",
+    "aws-sdk-dynamodb",
+    "aws-sdk-s3",
+    "aws-sdk-translate",
+    "axum",
+    "base64",
+    "futures",
+    "hyper",
+    "lambda_runtime",
+    "pnet",
+    "serde_dynamo",
+    "serde_json",
+    "structopt",
+    "tokio",
+    "toml",
+    "tower-http",
+    "urlencoding",
+]
+dns = [
+    "async-trait",
+    "aws-sdk-route53",
+    "axum",
+    "hyper",
+    "reqwest",
+    "serde_json",
+    "toml",
+]
+hetzner = []
+hosts = ["async-trait", "axum", "hyper", "reqwest", "serde_json", "toml"]
+jwt = ["jsonwebtoken", "serde_json", "toml"]
+linode = []
+log = []
+oauth = [
+    "async-trait",
+    "chrono",
+    "hyper",
+    "oauth2",
+    "reqwest",
+    "time_id",
+    "toml",
+]
+stripe = ["hyper", "reqwest", "tokio", "toml"]
+time_id = ["rand"]
+videos = ["async-trait", "axum", "hyper", "reqwest", "serde_json", "toml"]
+yew_markdown = ["yew"]
 
 [dependencies]
 anyhow = { version = "1", optional = true }
 async-trait = { version = "0.1", optional = true }
-aws-config = { version = "1", default-features = false, features = ["rt-tokio"], optional = true }
-aws-sdk-apigatewaymanagement = { version = "1", default-features = false, features = ["rt-tokio", "rustls"], optional = true }
-aws-sdk-dynamodb = { version = "1", default-features = false, features = ["rt-tokio", "rustls"], optional = true }
-aws-sdk-route53 = { version = "1", default-features = false, features = ["rt-tokio", "rustls"], optional = true }
-aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio", "rustls"], optional = true }
-aws-sdk-translate = { version = "1", default-features = false, features = ["rt-tokio", "rustls"], optional = true }
+aws-config = { version = "1", default-features = false, features = [
+    "rt-tokio",
+], optional = true }
+aws-sdk-apigatewaymanagement = { version = "=1.49.0", default-features = false, features = [
+    "rt-tokio",
+    "rustls",
+], optional = true }
+aws-sdk-bedrockruntime = { version = "=1.62.0", default-features = false, features = [
+    "rt-tokio",
+    "rustls",
+], optional = true }
+aws-sdk-dynamodb = { version = "=1.54.0", default-features = false, features = [
+    "rt-tokio",
+    "rustls",
+], optional = true }
+aws-sdk-route53 = { version = "=1.53.0", default-features = false, features = [
+    "rt-tokio",
+    "rustls",
+], optional = true }
+aws-sdk-s3 = { version = "=1.62.0", default-features = false, features = [
+    "rt-tokio",
+    "rustls",
+], optional = true }
+aws-sdk-translate = { version = "=1.49.0", default-features = false, features = [
+    "rt-tokio",
+    "rustls",
+], optional = true }
 axum = { version = "0.7.5", features = ["multipart"], optional = true }
 base64 = { version = "0.22", optional = true }
-bitcode = {version = "0.6.4", default-features = false, features = ["derive"], optional = true }
+bitcode = { version = "0.6.4", default-features = false, features = [
+    "derive",
+], optional = true }
 # bitcode = { version = "0", features = ["derive"], default-features = false, optional = true }
 chrono = { version = "0.4", optional = true }
 futures = { version = "0", optional = true }
@@ -42,15 +115,18 @@ oauth2 = { version = "4.4", optional = true }
 pnet = { version = "0.33", optional = true }
 rand = { version = "0.8", optional = true }
 reqwest = { version = "0.12", features = [
-    "json", "rustls-tls",
+    "json",
+    "rustls-tls",
 ], default-features = false, optional = true }
-serde = { version = "1.0", features = [ "derive" ] }
-serde_dynamo = { version = "4.1", features = [ "aws-sdk-dynamodb+1" ], optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_dynamo = { version = "4.1", features = [
+    "aws-sdk-dynamodb+1",
+], optional = true }
 serde_json = { version = "1.0", optional = true }
 # TODO: structopt is superseded by clap version 4
 structopt = { version = "0.3", optional = true }
 tokio = { version = "1", optional = true }
 toml = { version = "0.7", optional = true }
-tower-http = { version = "0.5", features = [ "fs" ], optional = true }
+tower-http = { version = "0.5", features = ["fs"], optional = true }
 urlencoding = { version = "2.1", optional = true }
 yew = { version = "0.21.0", features = ["ssr"], optional = true }
